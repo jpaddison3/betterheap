@@ -1,0 +1,6 @@
+# Compiled binary (built with `go build -o betterheap ./cmd/betterheap`)
+/betterheap
+
+# Test / coverage artifacts
+*.out
+*.test

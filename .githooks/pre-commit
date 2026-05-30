@@ -1,0 +1,10 @@
+#!/bin/sh
+# Reject commits with unformatted Go. Enable once with:
+#   git config core.hooksPath .githooks
+unformatted=$(gofmt -l $(git diff --cached --name-only --diff-filter=ACM | grep '\.go$') 2>/dev/null)
+if [ -n "$unformatted" ]; then
+	echo "gofmt needed on:" >&2
+	echo "$unformatted" >&2
+	echo "run: gofmt -w $unformatted" >&2
+	exit 1
+fi
