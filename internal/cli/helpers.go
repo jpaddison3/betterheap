@@ -54,6 +54,7 @@ func classify(err error) error {
 var qf struct {
 	since, until, tier     string
 	live, allTime, explain bool
+	full                   bool
 	fields                 string
 	jq                     string
 	limit                  int
@@ -76,6 +77,7 @@ func addRangeFlags(cmd *cobra.Command) {
 	f.StringVar(&qf.fields, "fields", "", "comma-separated output fields, in order")
 	f.StringArrayVar(&qf.where, "where", nil, "predicate key<op>value, op in = != > < >= <= (repeatable)")
 	f.StringVar(&qf.jq, "jq", "", "transform each row with an embedded jq program")
+	f.BoolVar(&qf.full, "full", false, fmt.Sprintf("emit full field values (default: truncate strings over %d chars)", output.TruncateLimit))
 	f.BoolVar(&qf.explain, "explain", false, "print generated SQL, tiers hit, and row count to stderr")
 }
 
@@ -239,6 +241,9 @@ func runQuery(o runOpts) error {
 	if qf.explain {
 		explainPlan(sql, plan, n)
 	}
+	if spec.Limit > 0 && n == spec.Limit {
+		warn(fmt.Sprintf("hit --limit %d; more rows likely exist — raise -n or narrow --since/--until", spec.Limit))
+	}
 	if n == 0 {
 		return exitErr{code: 3}
 	}
@@ -260,7 +265,7 @@ func (a *appEnv) outputSink(fields []string) (func(client.Row) error, func() err
 		}
 		return js.Write, js.Close, nil
 	}
-	sink := output.NewSink(os.Stdout, format, fields, output.ColorEnabled(flagNoColor, isTTY))
+	sink := output.NewSink(os.Stdout, format, fields, output.ColorEnabled(flagNoColor, isTTY), qf.full)
 	return sink.Write, sink.Close, nil
 }
 

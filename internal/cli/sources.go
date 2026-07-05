@@ -43,7 +43,7 @@ var sourcesListCmd = &cobra.Command{
 			return err
 		}
 		fields := []string{"name", "platform", "profile", "region", "retention_d", "paused"}
-		sink := output.NewSink(os.Stdout, format, fields, output.ColorEnabled(flagNoColor, isTTY))
+		sink := output.NewSink(os.Stdout, format, fields, output.ColorEnabled(flagNoColor, isTTY), true)
 		for _, s := range sources {
 			if err := sink.Write(client.Row{
 				"name":        s.Name,

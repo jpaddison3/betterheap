@@ -115,7 +115,7 @@ func runTail(srcName string) error {
 	}
 
 	if !qf.follow {
-		sink := output.NewSink(os.Stdout, format, fields, color)
+		sink := output.NewSink(os.Stdout, format, fields, color, qf.full)
 		for _, r := range rows {
 			if err := sink.Write(r); err != nil {
 				return err
@@ -131,7 +131,7 @@ func runTail(srcName string) error {
 	}
 
 	// Follow: print the initial batch, then poll the live buffer for dt > maxDt.
-	writeRow := tailWriter(format, fields, color, isTTY)
+	writeRow := tailWriter(format, fields, color, isTTY, qf.full)
 	maxDt := ""
 	for _, r := range rows {
 		if err := writeRow(r); err != nil {
@@ -176,16 +176,16 @@ func runTail(srcName string) error {
 
 // tailWriter returns a per-row writer suited to following: ndjson when piped or
 // requested, otherwise a compact (optionally colored) line.
-func tailWriter(format output.Format, fields []string, color, isTTY bool) func(client.Row) error {
+func tailWriter(format output.Format, fields []string, color, isTTY, full bool) func(client.Row) error {
 	if format == output.FormatNDJSON || !isTTY {
-		s := output.NewSink(os.Stdout, output.FormatNDJSON, fields, false)
+		s := output.NewSink(os.Stdout, output.FormatNDJSON, fields, false, full)
 		return s.Write
 	}
 	if format == output.FormatCSV || format == output.FormatJSON || format == output.FormatTable {
 		warn(fmt.Sprintf("--format %s can't stream with -f; using line output", format))
 	}
 	return func(r client.Row) error {
-		_, err := fmt.Fprintln(os.Stdout, output.Line(fields, r, color))
+		_, err := fmt.Fprintln(os.Stdout, output.Line(fields, r, color, full))
 		return err
 	}
 }

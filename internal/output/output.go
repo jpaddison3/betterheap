@@ -56,6 +56,12 @@ func ResolveFormat(flag string, isTTY bool) (Format, error) {
 	}
 }
 
+// TruncateLimit caps the rune length of any single string field in row output
+// (unless --full is passed). A log line's raw JSON or a stack trace can run to
+// many KB; capping it keeps a `logs -n 100` dump from flooding an agent's
+// context. Server-side filtering is unaffected — this is display only.
+const TruncateLimit = 2000
+
 // Sink consumes rows in a chosen format. Write may stream or buffer; Close
 // flushes buffered formats. Construct with NewSink.
 type Sink struct {
@@ -63,6 +69,7 @@ type Sink struct {
 	fields []string
 	format Format
 	color  bool
+	full   bool // when true, never truncate long string values
 
 	// streaming state
 	csvw       *csv.Writer
@@ -81,9 +88,11 @@ func ColorEnabled(noColor bool, isTTY bool) bool {
 	return isTTY
 }
 
-// NewSink builds a Sink writing to w. fields is the ordered column set.
-func NewSink(w io.Writer, format Format, fields []string, color bool) *Sink {
-	s := &Sink{w: w, fields: fields, format: format, color: color, jsonFirst: true}
+// NewSink builds a Sink writing to w. fields is the ordered column set. When
+// full is true, long string values are emitted verbatim; otherwise they are
+// truncated to TruncateLimit runes with an inline marker.
+func NewSink(w io.Writer, format Format, fields []string, color, full bool) *Sink {
+	s := &Sink{w: w, fields: fields, format: format, color: color, full: full, jsonFirst: true}
 	switch format {
 	case FormatCSV:
 		s.csvw = csv.NewWriter(w)
@@ -96,6 +105,9 @@ func NewSink(w io.Writer, format Format, fields []string, color bool) *Sink {
 
 // Write emits or buffers one row.
 func (s *Sink) Write(row client.Row) error {
+	if !s.full {
+		row = truncateRow(s.fields, row)
+	}
 	switch s.format {
 	case FormatNDJSON:
 		b, err := marshalOrdered(s.fields, row)
@@ -223,6 +235,49 @@ func cells(fields []string, row client.Row) []string {
 	return out
 }
 
+// truncateRow returns row with any oversized string field (among fields)
+// shortened. It copies lazily: if nothing is truncated, the original row is
+// returned unchanged and the caller's map is never mutated.
+func truncateRow(fields []string, row client.Row) client.Row {
+	var out client.Row
+	for _, f := range fields {
+		s, ok := row[f].(string)
+		if !ok {
+			continue
+		}
+		t, did := truncateString(s)
+		if !did {
+			continue
+		}
+		if out == nil {
+			out = make(client.Row, len(row))
+			for k, v := range row {
+				out[k] = v
+			}
+		}
+		out[f] = t
+	}
+	if out == nil {
+		return row
+	}
+	return out
+}
+
+// truncateString shortens s to TruncateLimit runes (UTF-8 safe) with an inline
+// marker, returning whether it changed. The byte-length fast path is sound
+// because a rune is at least one byte, so len(s) <= limit ⇒ rune count <= limit.
+func truncateString(s string) (string, bool) {
+	if len(s) <= TruncateLimit {
+		return s, false
+	}
+	r := []rune(s)
+	if len(r) <= TruncateLimit {
+		return s, false
+	}
+	dropped := len(r) - TruncateLimit
+	return fmt.Sprintf("%s…[truncated %d chars — use --full]", string(r[:TruncateLimit]), dropped), true
+}
+
 // cell renders a single value as text for table/csv/pretty output.
 func cell(v any) string {
 	switch t := v.(type) {
@@ -270,8 +325,12 @@ const (
 )
 
 // Line renders a row as one compact, space-separated line for streaming output
-// (tail -f), coloring the level field when color is enabled.
-func Line(fields []string, row client.Row, color bool) string {
+// (tail -f), coloring the level field when color is enabled. Long string values
+// are truncated unless full is set.
+func Line(fields []string, row client.Row, color, full bool) string {
+	if !full {
+		row = truncateRow(fields, row)
+	}
 	li := indexOf(fields, "level")
 	parts := make([]string, len(fields))
 	for i, f := range fields {

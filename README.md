@@ -116,6 +116,13 @@ The profile auto-detects from the source's platform; override with `--profile`.
 terminal, `ndjson` when piped (so `| jq` just works). Data goes to stdout,
 diagnostics/warnings to stderr. `--fields` is ordered and deterministic.
 
+Long string values (a raw JSON blob, a stack trace) are truncated to 2000 chars
+with an inline `…[truncated N chars — use --full]` marker, so a wide `-n 100`
+dump can't flood an agent's context. Pass `--full` for verbatim values;
+truncation is display-only and never affects server-side filtering. `--jq` and
+`sql` are exempt (they see raw values). When a query returns exactly `--limit`
+rows, a stderr note flags that more rows likely exist.
+
 | Exit | Meaning            |
 |------|--------------------|
 | 0    | ok                 |
