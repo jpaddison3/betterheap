@@ -43,12 +43,14 @@ func (s *Source) ArchiveTable() string {
 }
 
 // regionRe matches a canonical Better Stack region like eu-nbg-2 / us-chi-1,
-// stopping at the trailing number so ingest suffixes (e.g. "-vec" on Vector
-// hosts) are dropped.
-var regionRe = regexp.MustCompile(`[a-z]{2}-[a-z]+-\d+`)
+// or a zone-lettered region like eu-central-1a, stopping after the optional
+// trailing zone letter so ingest suffixes (e.g. "-vec" on Vector hosts) are
+// dropped.
+var regionRe = regexp.MustCompile(`[a-z]{2}-[a-z]+-\d+[a-z]?`)
 
 // RegionFromHost extracts the query region from an ingesting host:
 //   - "s12345.eu-nbg-2.betterstackdata.com" -> "eu-nbg-2"
+//   - "s1450418.eu-central-1a.betterstackdata.com" -> "eu-central-1a" (keeps the zone letter)
 //   - "s67890.eu-fsn-3-vec.betterstackdata.com" -> "eu-fsn-3" (drops -vec)
 //
 // Returns "" if the host isn't a betterstackdata.com host or has no region.

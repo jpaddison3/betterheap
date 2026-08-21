@@ -18,9 +18,11 @@ func TestTableNames(t *testing.T) {
 
 func TestRegionFromHost(t *testing.T) {
 	cases := map[string]string{
-		"s95.eu-nbg-2.betterstackdata.com":        "eu-nbg-2",
-		"s1.us-chi-1.betterstackdata.com":         "us-chi-1",
-		"s67890.eu-fsn-3-vec.betterstackdata.com": "eu-fsn-3", // drops the -vec ingest suffix
+		"s95.eu-nbg-2.betterstackdata.com":              "eu-nbg-2",
+		"s1.us-chi-1.betterstackdata.com":               "us-chi-1",
+		"s67890.eu-fsn-3-vec.betterstackdata.com":       "eu-fsn-3",      // drops the -vec ingest suffix
+		"s1450418.eu-central-1a.betterstackdata.com":    "eu-central-1a", // keeps the zone letter
+		"s207364.eu-central-1a-vec.betterstackdata.com": "eu-central-1a", // keeps the zone letter, drops -vec
 		"":        "",
 		"garbage": "",
 	}
